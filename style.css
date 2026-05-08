@@ -1,0 +1,49 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #333;
+    font-family: Arial, sans-serif;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+#gameCanvas {
+    border: 2px solid #fff;
+    background-color: #000;
+    display: block;
+}
+
+.start-button {
+    padding: 15px 40px;
+    font-size: 20px;
+    font-weight: bold;
+    background-color: #00ff00;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.start-button:hover {
+    background-color: #00dd00;
+    transform: scale(1.05);
+}
+
+.start-button:active {
+    transform: scale(0.95);
+}
