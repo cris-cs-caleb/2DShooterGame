@@ -9,7 +9,7 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-color: #333;
+    background: url('images/MainBackground.png') center/cover fixed no-repeat;
     font-family: Arial, sans-serif;
 }
 
@@ -23,7 +23,7 @@ body {
 
 #gameCanvas {
     border: 2px solid #fff;
-    background-color: #000;
+    background-color: transparent;
     display: block;
 }
 

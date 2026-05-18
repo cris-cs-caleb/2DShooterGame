@@ -16,6 +16,33 @@ Enemies: Red or dark shapes (like blocks or aliens)
 Bullet: Small rectangle moving upward
 Top of Screen: Score and three hearts>
 
-< Make Boss enemie spawn when points reach 1000
+< Use educational comments and small testable features.>
+
+
+
+< Make Boss enemy spawn when points reach 1000
     Title beside the game and a description
-    different enemies like asteriods or ships two colors like red and green for enemie whhiute for player and blue for final boss >
+    different enemies like asteriods or ships two colors like red and green for enemie whhiute for player and blue for final boss>
+
+## Sprint Progress
+
+### Sprint 1
+- Created game canvas
+- Added player movement
+- Added shooting system
+- Added enemy spawning
+- Added collision system
+- Added score and health
+
+### Sprint 2
+- Added boss enemy
+- Added boss health scaling
+- Added power ups
+
+### Sprint 3
+- Add images and backgrounds
+- Improved gameplay
+- Cleaned and simplified code
+
+## Notes
+The project is developed and pushed in sprint stages after major updates are completed.

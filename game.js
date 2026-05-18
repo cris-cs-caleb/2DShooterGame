@@ -1,17 +1,33 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const CANVAS_WIDTH = 700;
+const CANVAS_WIDTH = 450;
 const CANVAS_HEIGHT = 600;
+
+// Game image assets
+const ASSET_PATHS = {
+    player: 'images/PlayerImage.png',
+    enemy: 'images/EnemyImage.png',
+    boss: 'images/BossEnemy.png',
+    hyper: 'images/HypershotUpgrade1.png',
+    shield: 'images/SheildUpgrade.png',
+    asteroid: 'images/Asteroid.png',
+    canvasBg: 'images/CanvasBackgroundFinal.png'
+};
+const images = {};
+for (const key in ASSET_PATHS) {
+    images[key] = new Image();
+    images[key].src = ASSET_PATHS[key];
+}
 
 // Game constants
 const PLAYER_SPEED = 2.75;
-const ENEMY_SPEED = 2.25;
+const ENEMY_SPEED = 3.75;
 const NORMAL_SHOOT_DELAY = 175;
 const HYPER_SHOOT_DELAY = 50;
 const POWER_UP_TYPES = ['hyper', 'shield'];
-const ENEMY_COLORS = ['#ff0000', '#333333'];
-const ENEMY_SHAPES = ['rect', 'circle'];
+const ENEMY_COLORS = ['#ff0000', '#00ff00'];
+const ENEMY_TYPES = ['ship', 'asteroid'];
 const POWER_UP_SCORE_BASE = 50;
 const POWER_UP_SCORE_VARIANCE = 30;
 const BOSS_SPAWN_SCORE = 150;
@@ -32,10 +48,10 @@ const gameState = {
 
 // Player properties
 const player = {
-    x: 335,
-    y: 550,
-    width: 30,
-    height: 30,
+    x: 160,
+    y: 520,
+    width: 60, // was 30
+    height: 60, // was 30
     speed: PLAYER_SPEED,
     forceField: false
 };
@@ -43,8 +59,8 @@ const player = {
 // Bullets
 const bulletSystem = {
     list: [],
-    width: 5,
-    height: 15,
+    width: 5, // was 5
+    height: 30, // was 15
     speed: 10,
     lastShot: 0,
     shootDelay: NORMAL_SHOOT_DELAY,
@@ -55,14 +71,14 @@ const bulletSystem = {
 // Enemies
 const enemySystem = {
     list: [],
-    width: 30,
-    height: 30,
-    speed: ENEMY_SPEED,
+    width: 60, // was 30
+    height: 60, // was 30
+    speed: 1.1, // was 2.25
     lastSpawn: 0,
-    spawnDelay: 1200
+    spawnDelay: 1200 // slightly slower spawning
 };
 
-// Power-ups
+// power-ups
 const powerUpSystem = {
     list: [],
     speed: 1,
@@ -73,15 +89,15 @@ const powerUpSystem = {
 // Boss enemy
 const bossSystem = {
     boss: null,
-    width: 60,
-    height: 60,
-    speed: 1,
+    width: 120, // was 60
+    height: 120, // was 60
+    speed: 0.5, // was 1
     direction: 1,
     health: 30,
-    bullets: [],
-    bulletWidth: 8,
-    bulletHeight: 20,
-    bulletSpeed: BOSS_BULLET_SPEED,
+    bullets: [10],
+    bulletWidth: 16, // was 8
+    bulletHeight: 40, // was 20
+    bulletSpeed: 4, // was 8
     bulletDamage: 1,
     lastShot: 0,
     waveDelay: BOSS_WAVE_DELAY,
@@ -92,6 +108,10 @@ const bossSystem = {
 
 // Boss defeated flag
 let bossDefeated = false;
+
+// Boss levels
+let bossLevel = 1;
+let nextBossSpawn = 250;
 
 // Keyboard input
 let keys = {};
@@ -130,7 +150,7 @@ document.getElementById('startButton').addEventListener('click', () => {
     powerUpSystem.list = [];
     powerUpSystem.spawnThreshold = 0;
     bossSystem.boss = null;
-    bossSystem.bullets = [];
+    bossSystem.bullets = [10];
     bossSystem.lastShot = 0;
     bossSystem.waveCount = 0;
     bossSystem.waveCooldownUntil = 0;
@@ -183,15 +203,15 @@ function spawnEnemy() {
     }
     let now = Date.now();
     if (now - enemySystem.lastSpawn > enemySystem.spawnDelay) {
-        // Randomly choose color: red or dark gray to represent different enemy types
+        let enemyType = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
         let randomColor = ENEMY_COLORS[Math.floor(Math.random() * ENEMY_COLORS.length)];
-        // Randomly choose shape: rectangle (block) or circle (alien-like)
-        let randomShape = ENEMY_SHAPES[Math.floor(Math.random() * ENEMY_SHAPES.length)];
+        let enemyImage = enemyType === 'asteroid' ? 'asteroid' : 'enemy';
         enemySystem.list.push({
-            x: Math.random() * (CANVAS_WIDTH - enemySystem.width),
+     x: Math.random() * (CANVAS_WIDTH - enemySystem.width),
             y: 0,
             color: randomColor,
-            shape: randomShape // Add shape property
+            type: enemyType,
+            image: enemyImage
         });
         enemySystem.lastSpawn = now;
     }
@@ -202,7 +222,7 @@ function spawnPowerUp() {
     if (gameState.score - powerUpSystem.spawnThreshold >= POWER_UP_SCORE_BASE + Math.random() * POWER_UP_SCORE_VARIANCE) {
         let type = POWER_UP_TYPES[Math.floor(Math.random() * POWER_UP_TYPES.length)];
         powerUpSystem.list.push({
-            x: Math.random() * (CANVAS_WIDTH - 30),
+            x: Math.random() * (CANVAS_WIDTH - 60),
             y: 0,
             type: type
         });
@@ -210,20 +230,39 @@ function spawnPowerUp() {
     }
 }
 
-// Spawn the boss enemy when the player's score reaches 250 points
+// Spawn stronger boss every 250 score
 function spawnBoss() {
-    if (gameState.score >= BOSS_SPAWN_SCORE && !bossDefeated && bossSystem.boss === null) {
+
+    if (gameState.score >= nextBossSpawn && bossSystem.boss === null) {
+
         bossSystem.boss = {
-            x: CANVAS_WIDTH / 2 - bossSystem.width / 2, // Start at center top
+            x: CANVAS_WIDTH / 2 - bossSystem.width / 2,
             y: 0,
-            color: '#0000ff', // Blue color for the final boss
-            health: bossSystem.health,
+
+            // Boss gets stronger every level
+            health: 30 + bossLevel * 5,
+            maxHealth: 30 + bossLevel * 5,
+
+            // Shield active at spawn
             forceField: true,
-            forceFieldEndTime: Date.now() + BOSS_FORCE_FIELD_DURATION
+
+            // Shield lasts until attack ends
+            forceFieldEndTime: 0,
+
+            // ONLY 5 second damage window
+            vulnerableUntil: 0
         };
+
+        // Boss difficulty scaling
+        bossSystem.speed = 0.5 + bossLevel * 0.1;
+        bossSystem.bulletSpeed = 4 + bossLevel * 0.3;
+
+        // Shoots longer every level
         bossSystem.waveCount = 0;
-        bossSystem.waveCooldownUntil = 0;
+        bossSystem.maxWaveShots = 6 + bossLevel * 2;
+
         bossSystem.lastShot = 0;
+        bossSystem.waveCooldownUntil = 0;
     }
 }
 
@@ -263,82 +302,167 @@ function updateEnemies() {
 }
 
 // Update the boss enemy: move horizontally, fire projectiles in waves, and check for bullet collisions
+// Update boss
 function updateBoss() {
-    if (bossSystem.boss) {
-        // Check forceField timer
-        if (bossSystem.boss.forceField && Date.now() > bossSystem.boss.forceFieldEndTime) {
-            bossSystem.boss.forceField = false;
-        }
 
-        // Move boss left and right
-        bossSystem.boss.x += bossSystem.speed * bossSystem.direction;
-        // Reverse direction at edges
-        if (bossSystem.boss.x <= 0 || bossSystem.boss.x >= CANVAS_WIDTH - bossSystem.width) {
-            bossSystem.direction *= -1;
-        }
+    if (!bossSystem.boss) return;
 
-        let now = Date.now();
-        if (now >= bossSystem.waveCooldownUntil) {
-            if (bossSystem.waveCount < BOSS_WAVE_BULLET_COUNT) {
-                if (now - bossSystem.lastShot > bossSystem.waveDelay) {
-                    bossSystem.bullets.push({
-                        x: bossSystem.boss.x + bossSystem.width / 2 - bossSystem.bulletWidth / 2,
-                        y: bossSystem.boss.y + bossSystem.height
-                    });
-                    bossSystem.lastShot = now;
-                    bossSystem.waveCount++;
-                    if (bossSystem.boss.forceField && bossSystem.waveCount === 6) {
-                        bossSystem.boss.forceField = false;
-                    }
-                }
-            } else {
-                bossSystem.waveCooldownUntil = now + bossSystem.waveCooldown;
-                bossSystem.waveCount = 0;
+    // Boss movement
+    bossSystem.boss.x += bossSystem.speed * bossSystem.direction;
+
+    // Bounce off walls
+    if (
+        bossSystem.boss.x <= 0 ||
+        bossSystem.boss.x >= CANVAS_WIDTH - bossSystem.width
+    ) {
+        bossSystem.direction *= -1;
+    }
+
+    let now = Date.now();
+
+    // Shield attack phase
+    if (bossSystem.boss.forceField) {
+
+        if (now - bossSystem.lastShot > bossSystem.waveDelay) {
+
+            // Middle bullet
+            bossSystem.bullets.push({
+                x: bossSystem.boss.x + bossSystem.width / 2,
+                y: bossSystem.boss.y + bossSystem.height,
+                dx: 0
+            });
+
+            // Left bullet
+            bossSystem.bullets.push({
+                x: bossSystem.boss.x + bossSystem.width / 2,
+                y: bossSystem.boss.y + bossSystem.height,
+                dx: -2
+            });
+
+            // Right bullet
+            bossSystem.bullets.push({
+                x: bossSystem.boss.x + bossSystem.width / 2,
+                y: bossSystem.boss.y + bossSystem.height,
+                dx: 2
+            });
+
+            bossSystem.lastShot = now;
+
+            bossSystem.waveCount++;
+
+            // Longer shield phase
+            if (bossSystem.waveCount > 20 + bossLevel * 4) {
+
+                bossSystem.boss.forceField = false;
+
+                // 5 second damage window
+                bossSystem.boss.vulnerableUntil = now + 5000;
             }
         }
 
+    } else {
+
+        // Shield returns after 5 seconds
+        if (now > bossSystem.boss.vulnerableUntil) {
+
+            bossSystem.boss.forceField = true;
+
+            bossSystem.waveCount = 0;
+        }
+    }
+
+    // Bullet hits boss
+    for (let j = bulletSystem.list.length - 1; j >= 0; j--) {
+
+        if (
+            isCollidingBoss(
+                bulletSystem.list[j],
+                bossSystem.boss
+            )
+        ) {
+
+            bulletSystem.list.splice(j, 1);
+
+            // Only damage when shield down
+            if (!bossSystem.boss.forceField) {
+
+                bossSystem.boss.health--;
+
+                // Boss defeated
+                if (bossSystem.boss.health <= 0) {
+
+                    gameState.score += 100;
+
+                    bossLevel++;
+
+                    nextBossSpawn += 250;
+
+                    bossSystem.boss = null;
+
+                    bossSystem.bullets = [];
+
+                    break;
+                }
+            }
+        }
+    }
+}
         // Check for bullet collisions with boss
         for (let j = bulletSystem.list.length - 1; j >= 0; j--) {
             if (isCollidingBoss(bulletSystem.list[j], bossSystem.boss)) {
                 bulletSystem.list.splice(j, 1);
                 if (!bossSystem.boss.forceField) {
                     bossSystem.boss.health--;
-                    if (bossSystem.boss.health <= 0) {
-                        gameState.score += 50; // Points for defeating the boss
-                        bossDefeated = true;
-                        bossSystem.boss = null;
-                        bossSystem.bullets = [];
-                        break;
-                    }
+                   if (bossSystem.boss.health <= 0) {
+                     
+                        // Score for beating boss
+                    gameState.score += 100;
+                                        
+                        // Next level
+                    bossLevel++;
+
+                        // Next boss appears later
+                    nextBossSpawn += 250;
+
+                        // Remove boss
+                    bossSystem.boss = null;
+                    bossSystem.bullets = [];
+
+                    break;
+                }
+                  
                 }
             }
         }
-    }
-}
 
-// Update boss projectiles and check for player hits
+
+
+// Move boss bullets
 function updateBossBullets() {
+
     for (let i = bossSystem.bullets.length - 1; i >= 0; i--) {
+
+        // Move down
         bossSystem.bullets[i].y += bossSystem.bulletSpeed;
+
+        // Spread bullets left/right
+        bossSystem.bullets[i].x += bossSystem.bullets[i].dx || 0;
+
+        // Remove off screen bullets
         if (bossSystem.bullets[i].y > CANVAS_HEIGHT) {
             bossSystem.bullets.splice(i, 1);
             continue;
         }
 
+        // Player hit
         if (isCollidingPlayer(bossSystem.bullets[i])) {
-            if (!player.forceField) {
-                gameState.health -= bossSystem.bulletDamage;
-                if (gameState.health <= 0) {
-                    gameState.health = 0;
-                    gameState.over = true;
-                    bossSystem.boss = null;
-                    bossSystem.bullets = [];
-                    document.getElementById('startButton').textContent = 'START GAME';
-                    document.getElementById('startButton').disabled = false;
-                }
-            } else {
-                player.forceField = false;
+
+            gameState.health--;
+
+            if (gameState.health <= 0) {
+                gameState.over = true;
             }
+
             bossSystem.bullets.splice(i, 1);
         }
     }
@@ -384,9 +508,9 @@ function isCollidingBoss(bullet, boss) {
 // Collision detection for power-ups
 function isCollidingPowerUp(powerUp) {
     return powerUp.x < player.x + player.width &&
-           powerUp.x + 30 > player.x &&
+           powerUp.x + 60 > player.x &&
            powerUp.y < player.y + player.height &&
-           powerUp.y + 30 > player.y;
+           powerUp.y + 60 > player.y;
 }
 
 // Collision detection
@@ -399,18 +523,20 @@ function isColliding(bullet, enemy) {
 
 // Draw everything on the canvas each frame
 function draw() {
-    // Clear and set the background to a dark blue space-like color
-    ctx.fillStyle = '#000080';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    if (images.canvasBg && images.canvasBg.complete) {
+        ctx.drawImage(images.canvasBg, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    } else {
+        ctx.fillStyle = '#000080';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
     
-    // Draw the player as a green spaceship (triangle shape for a simple spaceship representation)
-    ctx.fillStyle = '#00ff00';
-    ctx.beginPath(); // Start drawing a custom shape
-    ctx.moveTo(player.x + player.width / 2, player.y); // Top point of the triangle
-    ctx.lineTo(player.x, player.y + player.height); // Bottom left
-    ctx.lineTo(player.x + player.width, player.y + player.height); // Bottom right
-    ctx.closePath(); // Close the path to form the triangle
-    ctx.fill(); // Fill the triangle with the current color
+    // Draw the player image when available
+    if (images.player && images.player.complete) {
+        ctx.drawImage(images.player, player.x, player.y, player.width, player.height);
+    } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
     
     // Draw player forceField
     if (player.forceField) {
@@ -427,28 +553,28 @@ function draw() {
         ctx.fillRect(bullet.x, bullet.y, bulletSystem.width, bulletSystem.height);
     }
     
-    // Draw enemies with their assigned colors and shapes (rectangles as blocks, circles as aliens)
+    // Draw enemies using their assigned images
     for (let enemy of enemySystem.list) {
-        ctx.fillStyle = enemy.color;
-        if (enemy.shape === 'rect') {
+        if (enemy.image && images[enemy.image] && images[enemy.image].complete) {
+            ctx.drawImage(images[enemy.image], enemy.x, enemy.y, enemySystem.width, enemySystem.height);
+        } else {
+            ctx.fillStyle = enemy.color;
             ctx.fillRect(enemy.x, enemy.y, enemySystem.width, enemySystem.height);
-        } else if (enemy.shape === 'circle') {
-            ctx.beginPath();
-            ctx.arc(enemy.x + enemySystem.width / 2, enemy.y + enemySystem.height / 2, enemySystem.width / 2, 0, 2 * Math.PI);
-            ctx.fill();
         }
     }
 
-    // Draw power-ups
+    // Draw power-ups using their images
     for (let powerUp of powerUpSystem.list) {
-        if (powerUp.type === 'hyper') {
-            ctx.fillStyle = '#ffff00'; // Yellow
-        } else if (powerUp.type === 'shield') {
-            ctx.fillStyle = '#00ff00'; // Green
+        if (powerUp.type === 'hyper' && images.hyper && images.hyper.complete) {
+            ctx.drawImage(images.hyper, powerUp.x, powerUp.y, 60, 60);
+        } else if (powerUp.type === 'shield' && images.shield && images.shield.complete) {
+            ctx.drawImage(images.shield, powerUp.x, powerUp.y, 60, 60);
+        } else {
+            ctx.fillStyle = powerUp.type === 'hyper' ? '#ffff00' : '#00ff00';
+            ctx.beginPath();
+            ctx.arc(powerUp.x + 30, powerUp.y + 30, 30, 0, 2 * Math.PI);
+            ctx.fill();
         }
-        ctx.beginPath();
-        ctx.arc(powerUp.x + 15, powerUp.y + 15, 15, 0, 2 * Math.PI);
-        ctx.fill();
     }
 
     // Draw boss bullets as blue projectiles coming down from the boss
@@ -457,10 +583,14 @@ function draw() {
         ctx.fillRect(bossBullet.x, bossBullet.y, bossSystem.bulletWidth, bossSystem.bulletHeight);
     }
     
-    // Draw the boss if active (large blue rectangle)
+    // Draw the boss if active
     if (bossSystem.boss) {
-        ctx.fillStyle = bossSystem.boss.color;
-        ctx.fillRect(bossSystem.boss.x, bossSystem.boss.y, bossSystem.width, bossSystem.height);
+        if (images.boss && images.boss.complete) {
+            ctx.drawImage(images.boss, bossSystem.boss.x, bossSystem.boss.y, bossSystem.width, bossSystem.height);
+        } else {
+            ctx.fillStyle = bossSystem.boss.color;
+            ctx.fillRect(bossSystem.boss.x, bossSystem.boss.y, bossSystem.width, bossSystem.height);
+        }
         if (bossSystem.boss.forceField) {
             ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)';
             ctx.lineWidth = 4;
@@ -469,7 +599,28 @@ function draw() {
             ctx.stroke();
         }
     }
-    
+
+    // Boss health bar
+if (bossSystem.boss) {
+
+    // Black background
+    ctx.fillStyle = 'black';
+    ctx.fillRect(25, 15, 300, 25);
+
+    // Purple health bar
+    ctx.fillStyle = '#8000ff';
+    ctx.fillRect(
+        25,
+        15,
+        300 * (bossSystem.boss.health / bossSystem.boss.maxHealth),
+        25
+    );
+
+    // Boss level text
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Arial';
+    ctx.fillText('BOSS LEVEL ' + bossLevel, 105, 33);
+}
     // Draw UI elements: score and health at the top left
     ctx.fillStyle = '#fff';
     ctx.font = '20px Arial';
